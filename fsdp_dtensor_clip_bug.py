@@ -1,10 +1,15 @@
 import os
 import torch
-from torch.distributed import init_process_group
+from torch.distributed import init_process_group, all_reduce, ReduceOp
 from torch.distributed.tensor import init_device_mesh, Shard, distribute_tensor
 
 def setup():
     init_process_group(backend="gloo")
+
+def compute_global_norm(tensor):
+    local_norm_sq = torch.sum(tensor ** 2)
+    all_reduce(local_norm_sq, op=ReduceOp.SUM)
+    return local_norm_sq.sqrt()
 
 def main():
     setup()
@@ -20,6 +25,11 @@ def main():
 
     # Shard along dim=0: each rank gets 2 rows
     dtensor = distribute_tensor(global_tensor, mesh, [Shard(0)])
+    
+    # compute correct global norm
+    global_norm = compute_global_norm(dtensor.to_local())
+    correct_clip_coef = 1.0 / (global_norm + 1e-6)
+    print(f"[Rank {rank}] Global norm: {global_norm.item():.6f}, correct clip coef: {correct_clip_coef.item():.6f}")
 
     # Each rank gets different data → different norm
     local_norm = dtensor.norm()
