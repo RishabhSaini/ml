@@ -2,6 +2,7 @@ import os
 import torch
 from torch.distributed import init_process_group
 from torch.distributed.tensor import init_device_mesh, Shard, distribute_tensor
+#from torch.distributed.tensor.experimental import implicit_replication
 
 def setup():
     init_process_group(backend="gloo")
@@ -26,5 +27,11 @@ def main():
     param.grad = dtensor.clone()         # manually set grad
     grad_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
     print(f"[Rank {rank}] Grad norm: {grad_norm.item():.6f}, Param Grad: {param.grad.to_local()}")
+
+    exact_norm = dtensor.norm(2)
+    with_eps = 1.0 / (exact_norm + 1e-2)
+    print(f"[Rank {rank}] exact norm: {exact_norm.item():.7f}, coeff: {with_eps.item():.7f}")
+
+
 if __name__ == "__main__":
     main()
