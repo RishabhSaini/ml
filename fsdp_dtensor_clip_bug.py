@@ -2,6 +2,7 @@ import os
 import torch
 from torch.distributed import init_process_group, all_reduce, ReduceOp
 from torch.distributed.tensor import init_device_mesh, Shard, distribute_tensor
+from torch.distributed.tensor.experimental import implicit_replication
 
 def setup():
     init_process_group(backend="gloo")
@@ -32,8 +33,9 @@ def main():
     print(f"[Rank {rank}] Global norm: {global_norm.item():.6f}, correct clip coef: {correct_clip_coef.item():.6f}")
 
     # Each rank gets different data → different norm
-    local_norm = dtensor.norm()
-    clip_coef = 1.0 / (local_norm + 1e-6)
+    with implicit_replication():
+        local_norm = dtensor.norm()
+        clip_coef = 1.0 / (local_norm + 1e-6)
 
     print(f"[Rank {rank}] Local tensor:\n{dtensor.to_local()}")
     print(f"[Rank {rank}] Local norm: {local_norm.item():.6f}, clip coef: {clip_coef.item():.6f}")
