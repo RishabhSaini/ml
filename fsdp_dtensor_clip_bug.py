@@ -28,10 +28,15 @@ def main():
     grad_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
     print(f"[Rank {rank}] Grad norm: {grad_norm.item():.6f}, Param Grad: {param.grad.to_local()}")
 
-    exact_norm = dtensor.norm(2)
-    with_eps = 1.0 / (exact_norm + 1e-2)
-    print(f"[Rank {rank}] exact norm: {exact_norm.item():.7f}, coeff: {with_eps.item():.7f}")
-
-
+    norm_shard = torch.linalg.vector_norm(dtensor, 2)
+    with_eps = 1.0 / (norm_shard + 1e-6)
+    actual_norm = 1.0/with_eps - 1e-6
+    print(f"[Rank {rank}] norm per shard: {norm_shard.item():.8f}, coeff: {with_eps.item():.10f}, global norm: {actual_norm.item():.8f},")
+    
+    actual_norm_local = torch.linalg.vector_norm(dtensor, 2) 
+    norm_shard_local = torch.linalg.vector_norm(dtensor.to_local(), 2)
+    with_eps_local = 1.0 / (norm_shard_local + 1e-6)
+    print(f"[Rank {rank}] norm per shard local: {norm_shard_local.item():.8f}, coeff_local: {with_eps_local.item():.10f}, global norm local: {actual_norm_local.item():.8f},")
+    
 if __name__ == "__main__":
     main()
