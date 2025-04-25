@@ -2,7 +2,6 @@ import os
 import torch
 from torch.distributed import init_process_group
 from torch.distributed.tensor import init_device_mesh, Shard, distribute_tensor
-#from torch.distributed.tensor.experimental import implicit_replication
 
 def setup():
     init_process_group(backend="gloo")
@@ -26,22 +25,11 @@ def main():
     param = torch.nn.Parameter(dtensor)  # wrap DTensor as Parameter
     param.grad = dtensor.clone()         # manually set grad
 
-    grad_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
-    print(f"[Rank {rank}] Grad norm: {grad_norm.item():.6f}, {grad_norm.placements}")
+    total_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
+    print(f"[Rank {rank}] Total norm: {total_norm.item():.6f}, {total_norm.placements}")
     
+    clip_coef = 1.0 / (total_norm + 1e-3)
+    print(f"[Rank {rank}] clip_coef: {clip_coef.item():.6f}, {clip_coef.placements}")
 
-
-    '''
-    norm_shard = torch.linalg.vector_norm(dtensor, 2)
-    with_eps = 1.0 / (norm_shard + 1e-6)
-    actual_norm = 1.0 / with_eps - 1e-6
-    print(f"[Rank {rank}] norm  : {norm_shard.item():.6f} {norm_shard.placements}, coeff: {with_eps.item():.6f} {with_eps.placements}, globalnorm: {actual_norm.item():.6f} {actual_norm.placements}")
-    
-    norm_shard_local = torch.linalg.vector_norm(dtensor, 2)
-    with_eps_local = 1.0 / (norm_shard_local + 1e-6)
-    actual_norm_local = torch.linalg.vector_norm(dtensor, 2)
-    print(f"[Rank {rank}] norm_l: {norm_shard_local.item():.6f} {norm_shard_local.placements}, coeff_l: {with_eps_local.item():.6f} {with_eps_local.placements}, globalnorm_l: {actual_norm_local.item():.6f} {actual_norm_local.placements}")
-    '''
-    
 if __name__ == "__main__":
     main()
