@@ -21,19 +21,19 @@ def main():
     EPSILON = 1e-6
 
     # Construct a tensor where rows are distinct per rank
-    global_tensor = torch.stack([torch.ones(4) * (i/10.0 + 0.1) for i in range(world_size * 2)])  # shape: (2 * world_size, 4)
+    global_tensor = torch.stack([torch.ones(1) * (i/10.0 + 0.1) for i in range(world_size * 1)])  # shape: (1 * world_size, 4)
 
-    # Shard along dim=0: each rank gets 2 rows
+    # Shard along dim=0: each rank gets 1 row
     dtensor = distribute_tensor(global_tensor, mesh, [Shard(0)]) 
-    print(f"[Rank {rank}] Local tensor:\n{dtensor.to_local()}")
+    print(f"[Rank {rank}] Local tensor: {dtensor.to_local()}")
    
     param = torch.nn.Parameter(dtensor)  # wrap DTensor as Parameter
     param.grad = dtensor.clone()         # manually set grad
 
-    dTensorNorm = (_get_total_norm([dtensor]) + 1.0) / 1.0
+    dTensorNorm = _get_total_norm([dtensor]) + 1.0 - 1.0
     print(f"[Rank {rank}] dTensorNorm: {dTensorNorm.item():.10f}, {dTensorNorm.placements}")
 
-    tensorNorm = _get_total_norm(global_tensor) + 1.0
+    tensorNorm = _get_total_norm(global_tensor)
     if rank == 0:
         print(f"TensorNorm: {tensorNorm.item():.10f}")
 
