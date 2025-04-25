@@ -22,14 +22,16 @@ def main():
     # Shard along dim=0: each rank gets 2 rows
     dtensor = distribute_tensor(global_tensor, mesh, [Shard(0)]) 
     print(f"[Rank {rank}] Local tensor:\n{dtensor.to_local()}")
-    
-    '''
-    param = torch.nn.Parameter(torch.randn(2*world_size, 4))  # wrap DTensor as Parameter
+   
+    param = torch.nn.Parameter(dtensor)  # wrap DTensor as Parameter
     param.grad = dtensor.clone()         # manually set grad
-    grad_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
-    print(f"[Rank {rank}] Grad norm: {grad_norm.item():.6f}, Param Grad: {param.grad.to_local()}")
-    '''
 
+    grad_norm = torch.nn.utils.clip_grad_norm_([param], max_norm=1.0)
+    print(f"[Rank {rank}] Grad norm: {grad_norm.item():.6f}, {grad_norm.placements}")
+    
+
+
+    '''
     norm_shard = torch.linalg.vector_norm(dtensor, 2)
     with_eps = 1.0 / (norm_shard + 1e-6)
     actual_norm = 1.0 / with_eps - 1e-6
@@ -39,6 +41,7 @@ def main():
     with_eps_local = 1.0 / (norm_shard_local + 1e-6)
     actual_norm_local = torch.linalg.vector_norm(dtensor, 2)
     print(f"[Rank {rank}] norm_l: {norm_shard_local.item():.6f} {norm_shard_local.placements}, coeff_l: {with_eps_local.item():.6f} {with_eps_local.placements}, globalnorm_l: {actual_norm_local.item():.6f} {actual_norm_local.placements}")
+    '''
     
 if __name__ == "__main__":
     main()
