@@ -1,7 +1,7 @@
 import os
 import torch
-from torch.distributed import init_process_group, destroy_process_group
-from torch.distributed.tensor import init_device_mesh, Shard, distribute_tensor
+from torch.distributed import init_process_group, destroy_process_group, all_reduce, ReduceOp
+from torch.distributed.tensor import init_device_mesh, distribute_tensor, Shard, Replicate, Partial
 from torch.nn.utils.clip_grad import _get_total_norm
 
 def setup():
@@ -17,23 +17,21 @@ def cleanup():
 def main():
     rank, world_size, mesh = setup()
     
-    MAX_NORM = 1.0
-    EPSILON = 1e-6
-
     # Construct a tensor where rows are distinct per rank
-    global_tensor = torch.stack([torch.ones(1) * (i/10.0 + 0.1) for i in range(world_size * 1)])  # shape: (1 * world_size, 4)
+    global_tensor = torch.stack([torch.tensor([1.0, 1.0])*i for i in range(1, world_size * 1 + 1)])  # shape: (1 * world_size, 4)
 
     # Shard along dim=0: each rank gets 1 row
     dtensor = distribute_tensor(global_tensor, mesh, [Shard(0)]) 
     print(f"[Rank {rank}] Local tensor: {dtensor.to_local()}")
-   
-    param = torch.nn.Parameter(dtensor)  # wrap DTensor as Parameter
-    param.grad = dtensor.clone()         # manually set grad
+    
+    dTensorNorm = torch.sum(dtensor.to_local()**2.0)
+    print(f"[Rank {rank}] dTensorNorm: {dTensorNorm.item():.10f}")
+    all_reduce(dTensorNorm, op=ReduceOp.SUM)
+    print(f"[Rank {rank}] dTensorNormAfterReduce: {dTensorNorm.item():.10f}")
+    calcNorm = dTensorNorm**(1/2)
+    print(f"[Rank {rank}] calcNorm: {calcNorm.item():.10f}")
 
-    dTensorNorm = _get_total_norm([dtensor]) + 1.0 - 1.0
-    print(f"[Rank {rank}] dTensorNorm: {dTensorNorm.item():.10f}, {dTensorNorm.placements}")
-
-    tensorNorm = _get_total_norm(global_tensor)
+    tensorNorm = torch.linalg.vector_norm(global_tensor)
     if rank == 0:
         print(f"TensorNorm: {tensorNorm.item():.10f}")
 
