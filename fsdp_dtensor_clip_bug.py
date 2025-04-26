@@ -18,22 +18,19 @@ def main():
     rank, world_size, mesh = setup()
     
     # Construct a tensor where rows are distinct per rank
-    global_tensor = torch.stack([torch.tensor([1.0, 1.0])*i for i in range(1, world_size * 1 + 1)])  # shape: (1 * world_size, 4)
+    global_tensor = torch.stack([torch.tensor([1.0, 1.0])*i for i in range(1, world_size * 1 + 1)])  # shape: (1 * world_size, 2)
 
     # Shard along dim=0: each rank gets 1 row
     dtensor = distribute_tensor(global_tensor, mesh, [Shard(0)]) 
-    print(f"[Rank {rank}] Local tensor: {dtensor.to_local()}")
     
     dTensorNorm = torch.sum(dtensor.to_local()**2.0)
-    print(f"[Rank {rank}] dTensorNorm: {dTensorNorm.item():.10f}")
     all_reduce(dTensorNorm, op=ReduceOp.SUM)
-    print(f"[Rank {rank}] dTensorNormAfterReduce: {dTensorNorm.item():.10f}")
     calcNorm = dTensorNorm**(1/2)
-    print(f"[Rank {rank}] calcNorm: {calcNorm.item():.10f}")
-
+    givenNorm = _get_total_norm(dtensor) * 1.0
     tensorNorm = torch.linalg.vector_norm(global_tensor)
+    
     if rank == 0:
-        print(f"TensorNorm: {tensorNorm.item():.10f}")
+        print(f"_get_total_norm: {givenNorm.item():.10f}, CorrectNorm: {tensorNorm.item():.10f}, calculatedNorm: {calcNorm.item():.10f}")
 
 if __name__ == "__main__":
     main()
